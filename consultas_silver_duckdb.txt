@@ -1,0 +1,67 @@
+-- Instalar y cargar el plugin Delta
+INSTALL delta;
+
+
+LOAD delta;
+
+
+-- Crear un secret usando connection string
+CREATE SECRET azure_secret (
+    TYPE AZURE,
+    CONNECTION_STRING 'DefaultEndpointsProtocol=https;AccountName=stmjcrprod001;AccountKey=la_key;EndpointSuffix=core.windows.net'
+);
+
+
+-- Leer tabla Delta de POSTS (Silver)
+
+SELECT *
+FROM delta_scan(
+    'abfss://silver@stmjcrprod001.dfs.core.windows.net/posts/'
+)
+LIMIT 10;
+
+
+-- Crear view para consultas
+
+CREATE OR REPLACE VIEW posts_silver AS
+SELECT *
+FROM delta_scan('abfss://silver@stmjcrprod001.dfs.core.windows.net/posts/');
+
+
+-- Conteo total de registros en Silver
+SELECT COUNT(*) AS total_records
+FROM posts_silver;
+
+
+-- Conteo por tipo de post
+SELECT PostTypeId, COUNT(*) AS total
+FROM posts_silver
+GROUP BY PostTypeId
+ORDER BY total DESC;
+
+
+-- Top 10 posts con mayor puntaje (Score)
+SELECT Id, Score, OwnerUserId, CreationDate
+FROM posts_silver
+ORDER BY Score DESC
+LIMIT 10;
+
+
+-- Conteo de posts por mes según CreationDate
+SELECT DATE_TRUNC('month', CreationDate) AS month, COUNT(*) AS total
+FROM posts_silver
+GROUP BY month
+ORDER BY month;
+
+
+-- Top 15 etiquetas (tags) más utilizadas en los posts
+SELECT tag, COUNT(*) AS total
+FROM (
+    SELECT UNNEST(string_split(Tags, '|')) AS tag
+    FROM posts_silver
+)
+WHERE tag <> ''
+GROUP BY tag
+ORDER BY total DESC
+LIMIT 15;
+
